@@ -1,6 +1,6 @@
 import calendar
 from datetime import date
-from app.database.database_manager import get_db_connection
+from .database.database_manager import get_db_connection
 
 # --- Definición de Plantillas Semanales ---
 # Mapeo de descripción de la asignación al rol requerido en la BD.

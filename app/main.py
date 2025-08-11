@@ -1,7 +1,7 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
-from app.person_manager import PersonManagerWidget
-from app.schedule_viewer import ScheduleViewerWidget
+from .person_manager import PersonManagerWidget
+from .schedule_viewer import ScheduleViewerWidget
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -25,7 +25,7 @@ class MainWindow(QMainWindow):
 
 def main():
     # It's good practice to ensure the database exists before starting the app
-    from app.database.database_setup import setup_database
+    from .database.database_setup import setup_database
     setup_database()
 
     app = QApplication(sys.argv)

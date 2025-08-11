@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QHeaderView, QLabel
 )
 from PyQt6.QtCore import Qt
-from app.database.database_manager import (
+from .database.database_manager import (
     get_all_people_with_roles, get_all_roles, add_person_with_roles,
     get_person_details, update_person_with_roles, delete_person
 )

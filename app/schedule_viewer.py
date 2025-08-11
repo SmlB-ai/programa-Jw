@@ -10,9 +10,9 @@ from PyQt6.QtWidgets import (
     QFileDialog
 )
 from PyQt6.QtCore import QDate
-from app.assignment_algorithm import generate_schedule, TEMPLATES_CYCLE
-from app.database.database_manager import save_schedule_to_history, get_people_for_role
-from app.pdf_exporter import export_schedule_to_pdf
+from .assignment_algorithm import generate_schedule, TEMPLATES_CYCLE
+from .database.database_manager import save_schedule_to_history, get_people_for_role
+from .pdf_exporter import export_schedule_to_pdf
 
 class ManualOverrideDialog(QDialog):
     def __init__(self, current_person, candidates, parent=None):
