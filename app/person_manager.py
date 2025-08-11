@@ -2,7 +2,7 @@ import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QDialog, QLineEdit, QCheckBox, QScrollArea, QDialogButtonBox,
-    QMessageBox, QHeaderView, QLabel
+    QMessageBox, QHeaderView, QLabel, QTextEdit
 )
 from PyQt6.QtCore import Qt
 from .database.database_manager import (
@@ -71,6 +71,26 @@ class PersonDialog(QDialog):
                 selected_role_ids.append(checkbox.property("role_id"))
         return name, selected_role_ids
 
+class BulkAddDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Añadir Múltiples Personas")
+        self.setMinimumSize(400, 300)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Pega una lista de nombres (uno por línea):"))
+
+        self.names_input = QTextEdit()
+        layout.addWidget(self.names_input)
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def get_names(self):
+        return self.names_input.toPlainText().strip().split('\n')
+
 class PersonManagerWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -80,9 +100,11 @@ class PersonManagerWidget(QWidget):
         # Button layout
         button_layout = QHBoxLayout()
         self.add_button = QPushButton("Añadir Persona")
+        self.bulk_add_button = QPushButton("Añadir Varios")
         self.edit_button = QPushButton("Editar Persona")
         self.delete_button = QPushButton("Eliminar Persona")
         button_layout.addWidget(self.add_button)
+        button_layout.addWidget(self.bulk_add_button)
         button_layout.addWidget(self.edit_button)
         button_layout.addWidget(self.delete_button)
         self.layout.addLayout(button_layout)
@@ -100,6 +122,7 @@ class PersonManagerWidget(QWidget):
 
         # Connect signals
         self.add_button.clicked.connect(self.add_person)
+        self.bulk_add_button.clicked.connect(self.bulk_add_people)
         self.edit_button.clicked.connect(self.edit_person)
         self.delete_button.clicked.connect(self.delete_person_confirmed)
 
@@ -160,4 +183,26 @@ class PersonManagerWidget(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             delete_person(person_id)
+            self.refresh_table()
+
+    def bulk_add_people(self):
+        dialog = BulkAddDialog(self)
+        if dialog.exec():
+            names = dialog.get_names()
+            added_count = 0
+            skipped_count = 0
+            for name in names:
+                name = name.strip()
+                if not name:
+                    continue
+
+                # add_person_with_roles returns None if the name already exists
+                if add_person_with_roles(name, []) is not None:
+                    added_count += 1
+                else:
+                    skipped_count += 1
+
+            QMessageBox.information(self, "Proceso Completado",
+                                    f"Se añadieron {added_count} personas nuevas.\n"
+                                    f"Se omitieron {skipped_count} nombres (vacíos o ya existentes).")
             self.refresh_table()

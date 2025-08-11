@@ -16,8 +16,12 @@ BASE_ASSIGNMENTS = [
     {'slot': 'Estudio Biblico: Conductor', 'role': 'Estudio Bíblico Conductor'},
     {'slot': 'Estudio Biblico: Lector', 'role': 'Estudio Bíblico Lector'},
     {'slot': 'Oracion de final', 'role': 'Oración'},
-    {'slot': 'Acomodadores de entrada', 'role': 'Acomodador'},
-    {'slot': 'Acomodadores de auditorio', 'role': 'Acomodador'},
+    # Acomodadores (múltiples)
+    {'slot': 'Acomodador de entrada 1', 'role': 'Acomodador'},
+    {'slot': 'Acomodador de entrada 2', 'role': 'Acomodador'},
+    {'slot': 'Acomodador de entrada 3', 'role': 'Acomodador'},
+    {'slot': 'Acomodador de auditorio 1', 'role': 'Acomodador'},
+    {'slot': 'Acomodador de auditorio 2', 'role': 'Acomodador'},
 ]
 
 # Plantillas específicas para cada semana del mes
