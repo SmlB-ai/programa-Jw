@@ -135,6 +135,65 @@ def get_people_for_role(role_name, gender=None):
     conn.close()
     return people
 
+def add_role(nombre):
+    """Añade un nuevo rol a la base de datos."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO roles (nombre) VALUES (?)", (nombre,))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        print(f"Error: El rol '{nombre}' ya existe.")
+        return False
+    finally:
+        conn.close()
+    return True
+
+def rename_role(rol_id, nuevo_nombre):
+    """Renombra un rol existente."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE roles SET nombre = ? WHERE id = ?", (nuevo_nombre, rol_id))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        print(f"Error: Ya existe un rol con el nombre '{nuevo_nombre}'.")
+        return False
+    finally:
+        conn.close()
+    return True
+
+def delete_role(rol_id):
+    """Elimina un rol de la base de datos."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # La eliminación en cascada en la tabla personas_roles se encargará de las asociaciones
+        cursor.execute("DELETE FROM roles WHERE id = ?", (rol_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def add_roles_to_person(person_id, role_ids):
+    """Añade una lista de roles a una persona, evitando duplicados."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    asignaciones = [(person_id, rol_id) for rol_id in role_ids]
+    # "OR IGNORE" es una sintaxis de SQLite para evitar errores de clave primaria duplicada
+    cursor.executemany("INSERT OR IGNORE INTO personas_roles (persona_id, rol_id) VALUES (?, ?)", asignaciones)
+    conn.commit()
+    conn.close()
+
+def remove_roles_from_person(person_id, role_ids):
+    """Quita una lista de roles de una persona."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Para DELETE, necesitamos una tupla de tuplas para executemany
+    asignaciones = [(person_id, rol_id) for rol_id in role_ids]
+    cursor.executemany("DELETE FROM personas_roles WHERE persona_id = ? AND rol_id = ?", asignaciones)
+    conn.commit()
+    conn.close()
+
 def save_schedule_to_history(schedule):
     """
     Guarda un horario generado en la tabla de historial.

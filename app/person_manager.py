@@ -1,216 +1,166 @@
 import sys
+import time
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QDialog, QLineEdit, QCheckBox, QScrollArea, QDialogButtonBox,
-    QMessageBox, QHeaderView, QLabel, QTextEdit
+    QMessageBox, QHeaderView, QLabel, QTextEdit, QGroupBox, QAbstractItemView,
+    QStyledItemDelegate, QComboBox
 )
 from PyQt6.QtCore import Qt
 from .database.database_manager import (
     get_all_people_with_roles, get_all_roles, add_person_with_roles,
-    get_person_details, update_person_with_roles, delete_person
+    get_person_details, update_person_with_roles, delete_person,
+    add_roles_to_person, remove_roles_from_person
 )
-
-class PersonDialog(QDialog):
-    def __init__(self, person_id=None, parent=None):
-        super().__init__(parent)
-        self.person_id = person_id
-        self.setWindowTitle("Añadir/Editar Persona")
-        self.setMinimumWidth(400)
-
-        self.layout = QVBoxLayout(self)
-
-        # Name field
-        self.layout.addWidget(QLabel("Nombre:"))
-        self.name_input = QLineEdit()
-        self.layout.addWidget(self.name_input)
-
-        # Gender field
-        self.layout.addWidget(QLabel("Género:"))
-        self.gender_combo = QComboBox()
-        self.gender_combo.addItems(["No especificado", "Hombre", "Mujer"])
-        self.layout.addWidget(self.gender_combo)
-
-        # Roles area
-        self.layout.addWidget(QLabel("Roles Asignados:"))
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.roles_widget = QWidget()
-        self.roles_layout = QVBoxLayout(self.roles_widget)
-        self.scroll_area.setWidget(self.roles_widget)
-        self.layout.addWidget(self.scroll_area)
-
-        self.role_checkboxes = []
-        self.all_roles = get_all_roles()
-        for role in self.all_roles:
-            checkbox = QCheckBox(role['nombre'])
-            checkbox.setProperty("role_id", role['id'])
-            self.role_checkboxes.append(checkbox)
-            self.roles_layout.addWidget(checkbox)
-
-        # Dialog buttons
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
-        self.layout.addWidget(self.button_box)
-
-        if self.person_id:
-            self.load_person_data()
-
-    def load_person_data(self):
-        nombre, genero, assigned_role_ids = get_person_details(self.person_id)
-        if nombre is None:
-            self.name_input.setText("Error: Persona no encontrada")
-            return
-
-        self.name_input.setText(nombre)
-        self.gender_combo.setCurrentText(genero)
-        for checkbox in self.role_checkboxes:
-            role_id = checkbox.property("role_id")
-            if role_id in assigned_role_ids:
-                checkbox.setChecked(True)
-
-    def get_data(self):
-        name = self.name_input.text().strip()
-        gender = self.gender_combo.currentText()
-        selected_role_ids = []
-        for checkbox in self.role_checkboxes:
-            if checkbox.isChecked():
-                selected_role_ids.append(checkbox.property("role_id"))
-        return name, gender, selected_role_ids
 
 class BulkAddDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Añadir Múltiples Personas")
-        self.setMinimumSize(400, 300)
-
+        self.setWindowTitle("Añadir Múltiples Personas por Lista")
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Pega una lista de nombres (uno por línea):"))
-
         self.names_input = QTextEdit()
         layout.addWidget(self.names_input)
-
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
-
     def get_names(self):
         return self.names_input.toPlainText().strip().split('\n')
+
+class GenderDelegate(QStyledItemDelegate):
+    def createEditor(self, parent, option, index):
+        editor = QComboBox(parent)
+        editor.addItems(["No especificado", "Hombre", "Mujer"])
+        return editor
+    def setEditorData(self, editor, index):
+        editor.setCurrentText(str(index.model().data(index, Qt.ItemDataRole.EditRole)))
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
 
 class PersonManagerWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-
-        self.layout = QVBoxLayout(self)
-
-        # Button layout
-        button_layout = QHBoxLayout()
-        self.add_button = QPushButton("Añadir Persona")
-        self.bulk_add_button = QPushButton("Añadir Varios")
-        self.edit_button = QPushButton("Editar Persona")
-        self.delete_button = QPushButton("Eliminar Persona")
-        button_layout.addWidget(self.add_button)
-        button_layout.addWidget(self.bulk_add_button)
-        button_layout.addWidget(self.edit_button)
-        button_layout.addWidget(self.delete_button)
-        self.layout.addLayout(button_layout)
-
-        # Table for people
+        self.main_layout = QHBoxLayout(self)
+        left_panel = QVBoxLayout()
+        person_buttons_layout = QHBoxLayout()
+        self.add_row_button = QPushButton("Añadir Fila")
+        self.bulk_add_button = QPushButton("Añadir por Lista")
+        self.delete_button = QPushButton("Eliminar Seleccionados")
+        person_buttons_layout.addWidget(self.add_row_button)
+        person_buttons_layout.addWidget(self.bulk_add_button)
+        person_buttons_layout.addWidget(self.delete_button)
+        left_panel.addLayout(person_buttons_layout)
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Género", "Roles Asignados"])
-        self.table.setColumnHidden(0, True) # Hide ID column
+        self.table.setColumnHidden(0, True)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.layout.addWidget(self.table)
-
-        # Connect signals
-        self.add_button.clicked.connect(self.add_person)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.SelectedClicked)
+        self.gender_delegate = GenderDelegate(self)
+        self.table.setItemDelegateForColumn(2, self.gender_delegate)
+        left_panel.addWidget(self.table)
+        self.main_layout.addLayout(left_panel, 2)
+        self.batch_panel = QGroupBox("Asignar Roles a Selección")
+        batch_layout = QVBoxLayout(self.batch_panel)
+        scroll_area = QScrollArea(); scroll_area.setWidgetResizable(True)
+        roles_widget = QWidget(); self.roles_checkbox_layout = QVBoxLayout(roles_widget)
+        scroll_area.setWidget(roles_widget)
+        batch_layout.addWidget(scroll_area)
+        self.role_checkboxes = []
+        batch_buttons_layout = QHBoxLayout()
+        self.assign_button = QPushButton("Asignar"); self.unassign_button = QPushButton("Quitar")
+        batch_buttons_layout.addWidget(self.assign_button); batch_buttons_layout.addWidget(self.unassign_button)
+        batch_layout.addLayout(batch_buttons_layout)
+        self.main_layout.addWidget(self.batch_panel, 1)
+        self.table.itemChanged.connect(self.handle_item_changed)
+        self.table.itemSelectionChanged.connect(self.update_panel_state)
+        self.add_row_button.clicked.connect(self.add_new_row)
         self.bulk_add_button.clicked.connect(self.bulk_add_people)
-        self.edit_button.clicked.connect(self.edit_person)
         self.delete_button.clicked.connect(self.delete_person_confirmed)
+        self.assign_button.clicked.connect(self.assign_roles_to_selection)
+        self.unassign_button.clicked.connect(self.unassign_roles_from_selection)
+        self.refresh_table()
+        self.update_panel_state()
 
+    def block_signals(self, block): self.table.blockSignals(block)
+
+    def handle_item_changed(self, item):
+        self.block_signals(True)
+        person_id = int(self.table.item(item.row(), 0).text())
+        nombre = self.table.item(item.row(), 1).text()
+        genero = self.table.item(item.row(), 2).text()
+        _, _, role_ids = get_person_details(person_id)
+        update_person_with_roles(person_id, nombre, genero, role_ids)
+        self.block_signals(False)
+
+    def add_new_row(self):
+        placeholder_name = f"Nueva Persona {int(time.time())}"
+        person_id = add_person_with_roles(placeholder_name, 'No especificado', [])
+        if person_id is None: return
+        self.refresh_table()
+        for row in range(self.table.rowCount()):
+            if int(self.table.item(row, 0).text()) == person_id:
+                self.table.editItem(self.table.item(row, 1))
+                break
+
+    def populate_role_checkboxes(self):
+        for checkbox in self.role_checkboxes: checkbox.deleteLater()
+        self.role_checkboxes.clear()
+        for role in get_all_roles():
+            cb = QCheckBox(role['nombre']); cb.setProperty("role_id", role['id'])
+            self.roles_checkbox_layout.addWidget(cb); self.role_checkboxes.append(cb)
+
+    def update_panel_state(self): self.batch_panel.setEnabled(bool(self.table.selectionModel().selectedRows()))
+
+    def get_selected_person_ids(self): return [int(self.table.item(i.row(), 0).text()) for i in self.table.selectionModel().selectedRows()]
+
+    def assign_roles_to_selection(self):
+        p_ids = self.get_selected_person_ids()
+        r_ids = [cb.property("role_id") for cb in self.role_checkboxes if cb.isChecked()]
+        if not p_ids or not r_ids: return
+        for p_id in p_ids: add_roles_to_person(p_id, r_ids)
+        self.refresh_table()
+
+    def unassign_roles_from_selection(self):
+        p_ids = self.get_selected_person_ids()
+        r_ids = [cb.property("role_id") for cb in self.role_checkboxes if cb.isChecked()]
+        if not p_ids or not r_ids: return
+        for p_id in p_ids: remove_roles_from_person(p_id, r_ids)
         self.refresh_table()
 
     def refresh_table(self):
+        self.block_signals(True)
         self.table.setRowCount(0)
-        people = get_all_people_with_roles()
-        for row_num, person in enumerate(people):
+        for row_num, person in enumerate(get_all_people_with_roles()):
             self.table.insertRow(row_num)
             self.table.setItem(row_num, 0, QTableWidgetItem(str(person['id'])))
             self.table.setItem(row_num, 1, QTableWidgetItem(person['nombre']))
             self.table.setItem(row_num, 2, QTableWidgetItem(person['genero']))
             self.table.setItem(row_num, 3, QTableWidgetItem(person['roles'] or 'Sin roles'))
-
-    def add_person(self):
-        dialog = PersonDialog(parent=self)
-        if dialog.exec():
-            name, gender, role_ids = dialog.get_data()
-            if not name:
-                QMessageBox.warning(self, "Entrada Inválida", "El nombre no puede estar vacío.")
-                return
-
-            result = add_person_with_roles(name, gender, role_ids)
-            if result is None:
-                QMessageBox.warning(self, "Error", f"Ya existe una persona con el nombre '{name}'.")
-            else:
-                self.refresh_table()
-
-    def edit_person(self):
-        selected_rows = self.table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.information(self, "Selección Requerida", "Por favor, selecciona una persona para editar.")
-            return
-
-        person_id = int(self.table.item(selected_rows[0].row(), 0).text())
-        dialog = PersonDialog(person_id=person_id, parent=self)
-        if dialog.exec():
-            name, gender, role_ids = dialog.get_data()
-            if not name:
-                QMessageBox.warning(self, "Entrada Inválida", "El nombre no puede estar vacío.")
-                return
-            update_person_with_roles(person_id, name, gender, role_ids)
-            self.refresh_table()
+        self.block_signals(False)
+        self.populate_role_checkboxes()
 
     def delete_person_confirmed(self):
-        selected_rows = self.table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.information(self, "Selección Requerida", "Por favor, selecciona una persona para eliminar.")
-            return
-
-        person_id = int(self.table.item(selected_rows[0].row(), 0).text())
-        person_name = self.table.item(selected_rows[0].row(), 1).text()
-
-        reply = QMessageBox.question(self, 'Confirmar Eliminación',
-                                     f"¿Estás seguro de que quieres eliminar a '{person_name}'? Esta acción no se puede deshacer.",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.No)
-
+        p_ids = self.get_selected_person_ids()
+        if not p_ids: return
+        reply = QMessageBox.question(self, 'Confirmar', f"¿Eliminar {len(p_ids)} persona(s)?")
         if reply == QMessageBox.StandardButton.Yes:
-            delete_person(person_id)
+            for p_id in p_ids: delete_person(p_id)
             self.refresh_table()
 
     def bulk_add_people(self):
         dialog = BulkAddDialog(self)
         if dialog.exec():
-            names = dialog.get_names()
-            added_count = 0
-            skipped_count = 0
-            for name in names:
-                name = name.strip()
-                if not name:
-                    continue
-
-                # add_person_with_roles returns None if the name already exists
-                if add_person_with_roles(name, 'No especificado', []) is not None:
-                    added_count += 1
-                else:
-                    skipped_count += 1
-
-            QMessageBox.information(self, "Proceso Completado",
-                                    f"Se añadieron {added_count} personas nuevas.\n"
-                                    f"Se omitieron {skipped_count} nombres (vacíos o ya existentes).")
+            added, skipped = 0, 0
+            for name in dialog.get_names():
+                if name.strip() and add_person_with_roles(name.strip(), 'No especificado', []) is not None:
+                    added += 1
+                else: skipped += 1
+            QMessageBox.information(self, "Completado", f"Añadidos: {added}. Omitidos: {skipped}.")
             self.refresh_table()

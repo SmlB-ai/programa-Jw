@@ -2,6 +2,7 @@ import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTabWidget
 from .person_manager import PersonManagerWidget
 from .schedule_viewer import ScheduleViewerWidget
+from .role_manager import RoleManagerWidget
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -21,7 +22,9 @@ class MainWindow(QMainWindow):
         self.schedule_tab = ScheduleViewerWidget()
         self.tabs.addTab(self.schedule_tab, "Horario de Reuniones")
 
-        # You can add more tabs here for settings, etc.
+        # Tab for Role Management
+        self.role_manager_tab = RoleManagerWidget()
+        self.tabs.addTab(self.role_manager_tab, "Gestionar Roles")
 
 def main():
     # It's good practice to ensure the database exists before starting the app
