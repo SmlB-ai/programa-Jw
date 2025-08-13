@@ -28,7 +28,8 @@ def setup_database():
     sql_create_personas_table = """
     CREATE TABLE IF NOT EXISTS personas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT NOT NULL UNIQUE
+        nombre TEXT NOT NULL UNIQUE,
+        genero TEXT NOT NULL DEFAULT 'No especificado' CHECK(genero IN ('Hombre', 'Mujer', 'No especificado'))
     );
     """
 
@@ -69,8 +70,21 @@ def setup_database():
         create_table(conn, sql_create_personas_roles_table)
         create_table(conn, sql_create_asignaciones_historial_table)
 
-        # Opcional: Añadir roles por defecto si la tabla está vacía
         cursor = conn.cursor()
+
+        # --- Handle migration for existing databases: add 'genero' column if it doesn't exist ---
+        cursor.execute("PRAGMA table_info(personas)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'genero' not in columns:
+            print("Añadiendo columna 'genero' a la tabla 'personas'.")
+            # Note: The CHECK constraint might not be enforceable on ALTER TABLE in older SQLite versions,
+            # but it's good practice to include it. The application logic will be the primary guard.
+            cursor.execute("ALTER TABLE personas ADD COLUMN genero TEXT NOT NULL DEFAULT 'No especificado'")
+            # A separate CHECK constraint is not easily added via ALTER TABLE.
+            # The CREATE TABLE statement will handle it for new DBs.
+            conn.commit()
+
+        # Opcional: Añadir roles por defecto si la tabla está vacía
         cursor.execute("SELECT COUNT(*) FROM roles")
         if cursor.fetchone()[0] == 0:
             default_roles = [

@@ -21,11 +21,11 @@ def get_all_roles():
     return roles
 
 def get_all_people_with_roles():
-    """Obtiene todas las personas y sus roles asociados."""
+    """Obtiene todas las personas con su género y roles asociados."""
     conn = get_db_connection()
     cursor = conn.cursor()
     query = """
-    SELECT p.id, p.nombre, GROUP_CONCAT(r.nombre, ', ') as roles
+    SELECT p.id, p.nombre, p.genero, GROUP_CONCAT(r.nombre, ', ') as roles
     FROM personas p
     LEFT JOIN personas_roles pr ON p.id = pr.persona_id
     LEFT JOIN roles r ON pr.rol_id = r.id
@@ -37,12 +37,12 @@ def get_all_people_with_roles():
     conn.close()
     return people
 
-def add_person_with_roles(nombre, rol_ids):
-    """Añade una nueva persona y le asigna roles."""
+def add_person_with_roles(nombre, genero, rol_ids):
+    """Añade una nueva persona con su género y le asigna roles."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO personas (nombre) VALUES (?)", (nombre,))
+        cursor.execute("INSERT INTO personas (nombre, genero) VALUES (?, ?)", (nombre, genero))
         persona_id = cursor.lastrowid
         if rol_ids:
             asignaciones = [(persona_id, rol_id) for rol_id in rol_ids]
@@ -56,13 +56,13 @@ def add_person_with_roles(nombre, rol_ids):
         conn.close()
     return persona_id
 
-def update_person_with_roles(persona_id, nombre, rol_ids):
-    """Actualiza el nombre de una persona y sus roles."""
+def update_person_with_roles(persona_id, nombre, genero, rol_ids):
+    """Actualiza el nombre, género y roles de una persona."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Actualizar nombre
-        cursor.execute("UPDATE personas SET nombre = ? WHERE id = ?", (nombre, persona_id))
+        # Actualizar nombre y genero
+        cursor.execute("UPDATE personas SET nombre = ?, genero = ? WHERE id = ?", (nombre, genero, persona_id))
 
         # Actualizar roles (borrar los antiguos e insertar los nuevos)
         cursor.execute("DELETE FROM personas_roles WHERE persona_id = ?", (persona_id,))
@@ -92,37 +92,45 @@ def delete_person(persona_id):
         conn.close()
 
 def get_person_details(persona_id):
-    """Obtiene los detalles de una persona, incluyendo sus IDs de rol."""
+    """Obtiene los detalles de una persona, incluyendo su género y IDs de rol."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Obtener nombre
-    cursor.execute("SELECT nombre FROM personas WHERE id = ?", (persona_id,))
+    # Obtener nombre y genero
+    cursor.execute("SELECT nombre, genero FROM personas WHERE id = ?", (persona_id,))
     persona = cursor.fetchone()
     if not persona:
         conn.close()
-        return None, None
+        return None, None, None
 
     # Obtener roles
     cursor.execute("SELECT rol_id FROM personas_roles WHERE persona_id = ?", (persona_id,))
     rol_ids = [row['rol_id'] for row in cursor.fetchall()]
 
     conn.close()
-    return persona['nombre'], rol_ids
+    return persona['nombre'], persona['genero'], rol_ids
 
-def get_people_for_role(role_name):
-    """Obtiene todas las personas que tienen un rol específico."""
+def get_people_for_role(role_name, gender=None):
+    """Obtiene todas las personas que tienen un rol y, opcionalmente, un género específico."""
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    params = [role_name]
     query = """
-    SELECT p.id, p.nombre
+    SELECT p.id, p.nombre, p.genero
     FROM personas p
     JOIN personas_roles pr ON p.id = pr.persona_id
     JOIN roles r ON pr.rol_id = r.id
     WHERE r.nombre = ?
-    ORDER BY p.nombre
     """
-    cursor.execute(query, (role_name,))
+
+    if gender and gender != 'Cualquiera':
+        query += " AND p.genero = ?"
+        params.append(gender)
+
+    query += " ORDER BY p.nombre"
+
+    cursor.execute(query, params)
     people = cursor.fetchall()
     conn.close()
     return people
