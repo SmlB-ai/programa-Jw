@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt
 from .database.database_manager import (
     get_all_people_with_roles, get_all_roles, add_person_with_roles,
     get_person_details, update_person_with_roles, delete_person,
-    add_roles_to_person, remove_roles_from_person
+    add_roles_to_person, remove_roles_from_person, update_person_gender
 )
 
 class BulkAddDialog(QDialog):
@@ -53,6 +53,14 @@ class PersonManagerWidget(QWidget):
         person_buttons_layout.addWidget(self.bulk_add_button)
         person_buttons_layout.addWidget(self.delete_button)
         left_panel.addLayout(person_buttons_layout)
+
+        # Filter layout
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("Filtrar por Rol:"))
+        self.role_filter_combo = QComboBox()
+        filter_layout.addWidget(self.role_filter_combo)
+        left_panel.addLayout(filter_layout)
+
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Nombre", "Género", "Roles Asignados"])
@@ -77,14 +85,30 @@ class PersonManagerWidget(QWidget):
         self.assign_button = QPushButton("Asignar"); self.unassign_button = QPushButton("Quitar")
         batch_buttons_layout.addWidget(self.assign_button); batch_buttons_layout.addWidget(self.unassign_button)
         batch_layout.addLayout(batch_buttons_layout)
+
+        # --- Batch Gender Change ---
+        gender_group = QGroupBox("Cambiar Género a Selección")
+        gender_layout = QVBoxLayout(gender_group)
+        self.batch_gender_combo = QComboBox()
+        self.batch_gender_combo.addItems(["Hombre", "Mujer"])
+        self.apply_gender_button = QPushButton("Aplicar Género")
+        gender_layout.addWidget(self.batch_gender_combo)
+        gender_layout.addWidget(self.apply_gender_button)
+        batch_layout.addWidget(gender_group)
+
+        batch_layout.addStretch() # Add a spacer at the end
+
         self.main_layout.addWidget(self.batch_panel, 1)
         self.table.itemChanged.connect(self.handle_item_changed)
         self.table.itemSelectionChanged.connect(self.update_panel_state)
+        self.role_filter_combo.currentIndexChanged.connect(self.refresh_table)
         self.add_row_button.clicked.connect(self.add_new_row)
         self.bulk_add_button.clicked.connect(self.bulk_add_people)
         self.delete_button.clicked.connect(self.delete_person_confirmed)
         self.assign_button.clicked.connect(self.assign_roles_to_selection)
         self.unassign_button.clicked.connect(self.unassign_roles_from_selection)
+        self.apply_gender_button.clicked.connect(self.apply_batch_gender)
+        self.populate_role_filter()
         self.refresh_table()
         self.update_panel_state()
 
@@ -116,6 +140,20 @@ class PersonManagerWidget(QWidget):
             cb = QCheckBox(role['nombre']); cb.setProperty("role_id", role['id'])
             self.roles_checkbox_layout.addWidget(cb); self.role_checkboxes.append(cb)
 
+    def populate_role_filter(self):
+        self.role_filter_combo.blockSignals(True)
+        current_id = self.role_filter_combo.currentData()
+        self.role_filter_combo.clear()
+        self.role_filter_combo.addItem("Todos", None)
+        for role in get_all_roles():
+            self.role_filter_combo.addItem(role['nombre'], role['id'])
+
+        # Restore previous selection if it still exists
+        index = self.role_filter_combo.findData(current_id)
+        if index != -1:
+            self.role_filter_combo.setCurrentIndex(index)
+        self.role_filter_combo.blockSignals(False)
+
     def update_panel_state(self): self.batch_panel.setEnabled(bool(self.table.selectionModel().selectedRows()))
 
     def get_selected_person_ids(self): return [int(self.table.item(i.row(), 0).text()) for i in self.table.selectionModel().selectedRows()]
@@ -136,8 +174,9 @@ class PersonManagerWidget(QWidget):
 
     def refresh_table(self):
         self.block_signals(True)
+        role_filter_id = self.role_filter_combo.currentData()
         self.table.setRowCount(0)
-        for row_num, person in enumerate(get_all_people_with_roles()):
+        for row_num, person in enumerate(get_all_people_with_roles(role_id_filter=role_filter_id)):
             self.table.insertRow(row_num)
             self.table.setItem(row_num, 0, QTableWidgetItem(str(person['id'])))
             self.table.setItem(row_num, 1, QTableWidgetItem(person['nombre']))
@@ -145,6 +184,7 @@ class PersonManagerWidget(QWidget):
             self.table.setItem(row_num, 3, QTableWidgetItem(person['roles'] or 'Sin roles'))
         self.block_signals(False)
         self.populate_role_checkboxes()
+        self.populate_role_filter()
 
     def delete_person_confirmed(self):
         p_ids = self.get_selected_person_ids()
@@ -164,3 +204,17 @@ class PersonManagerWidget(QWidget):
                 else: skipped += 1
             QMessageBox.information(self, "Completado", f"Añadidos: {added}. Omitidos: {skipped}.")
             self.refresh_table()
+
+    def apply_batch_gender(self):
+        p_ids = self.get_selected_person_ids()
+        if not p_ids:
+            QMessageBox.information(self, "Información", "Selecciona al menos una persona.")
+            return
+
+        gender = self.batch_gender_combo.currentText()
+
+        for p_id in p_ids:
+            update_person_gender(p_id, gender)
+
+        self.refresh_table()
+        QMessageBox.information(self, "Éxito", f"Género actualizado para {len(p_ids)} persona(s).")

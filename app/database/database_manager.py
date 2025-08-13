@@ -20,19 +20,38 @@ def get_all_roles():
     conn.close()
     return roles
 
-def get_all_people_with_roles():
-    """Obtiene todas las personas con su género y roles asociados."""
+def get_all_people_with_roles(role_id_filter=None):
+    """
+    Obtiene todas las personas con su género y roles asociados.
+    Si se proporciona un role_id_filter, solo devuelve personas con ese rol.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    query = """
-    SELECT p.id, p.nombre, p.genero, GROUP_CONCAT(r.nombre, ', ') as roles
-    FROM personas p
-    LEFT JOIN personas_roles pr ON p.id = pr.persona_id
-    LEFT JOIN roles r ON pr.rol_id = r.id
-    GROUP BY p.id
-    ORDER BY p.nombre
-    """
-    cursor.execute(query)
+
+    params = []
+    if role_id_filter:
+        query = """
+        SELECT p.id, p.nombre, p.genero, GROUP_CONCAT(r.nombre, ', ') as roles
+        FROM personas p
+        LEFT JOIN personas_roles pr ON p.id = pr.persona_id
+        LEFT JOIN roles r ON pr.rol_id = r.id
+        JOIN personas_roles pr_filter ON p.id = pr_filter.persona_id
+        WHERE pr_filter.rol_id = ?
+        GROUP BY p.id
+        ORDER BY p.nombre
+        """
+        params.append(role_id_filter)
+    else:
+        query = """
+        SELECT p.id, p.nombre, p.genero, GROUP_CONCAT(r.nombre, ', ') as roles
+        FROM personas p
+        LEFT JOIN personas_roles pr ON p.id = pr.persona_id
+        LEFT JOIN roles r ON pr.rol_id = r.id
+        GROUP BY p.id
+        ORDER BY p.nombre
+        """
+
+    cursor.execute(query, params)
     people = cursor.fetchall()
     conn.close()
     return people
@@ -191,6 +210,14 @@ def remove_roles_from_person(person_id, role_ids):
     # Para DELETE, necesitamos una tupla de tuplas para executemany
     asignaciones = [(person_id, rol_id) for rol_id in role_ids]
     cursor.executemany("DELETE FROM personas_roles WHERE persona_id = ? AND rol_id = ?", asignaciones)
+    conn.commit()
+    conn.close()
+
+def update_person_gender(person_id, genero):
+    """Actualiza solo el género de una persona."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE personas SET genero = ? WHERE id = ?", (genero, person_id))
     conn.commit()
     conn.close()
 
