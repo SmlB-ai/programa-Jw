@@ -115,23 +115,53 @@ class PersonManagerWidget(QWidget):
     def block_signals(self, block): self.table.blockSignals(block)
 
     def handle_item_changed(self, item):
+        if not item or not self.table.item(item.row(), 0) or not self.table.item(item.row(), 0).text().isdigit():
+            return
+
         self.block_signals(True)
         person_id = int(self.table.item(item.row(), 0).text())
         nombre = self.table.item(item.row(), 1).text()
         genero = self.table.item(item.row(), 2).text()
+
+        if not nombre.strip():
+            QMessageBox.warning(self, "Nombre Inválido", "El nombre no puede estar vacío. Se restaurará el nombre original.")
+            _, original_nombre, _, _ = get_person_details(person_id)
+            self.table.item(item.row(), 1).setText(original_nombre)
+            self.block_signals(False)
+            return
+
         _, _, role_ids = get_person_details(person_id)
         update_person_with_roles(person_id, nombre, genero, role_ids)
         self.block_signals(False)
 
     def add_new_row(self):
+        self.table.blockSignals(True)
+
         placeholder_name = f"Nueva Persona {int(time.time())}"
         person_id = add_person_with_roles(placeholder_name, 'No especificado', [])
-        if person_id is None: return
-        self.refresh_table()
-        for row in range(self.table.rowCount()):
-            if int(self.table.item(row, 0).text()) == person_id:
-                self.table.editItem(self.table.item(row, 1))
-                break
+
+        if person_id is None:
+            self.table.blockSignals(False)
+            QMessageBox.critical(self, "Error", "No se pudo crear la nueva persona en la base de datos.")
+            return
+
+        row_position = self.table.rowCount()
+        self.table.insertRow(row_position)
+
+        id_item = QTableWidgetItem(str(person_id))
+        name_item = QTableWidgetItem(placeholder_name)
+        gender_item = QTableWidgetItem('No especificado')
+        roles_item = QTableWidgetItem('Sin roles')
+
+        self.table.setItem(row_position, 0, id_item)
+        self.table.setItem(row_position, 1, name_item)
+        self.table.setItem(row_position, 2, gender_item)
+        self.table.setItem(row_position, 3, roles_item)
+
+        self.table.blockSignals(False)
+
+        self.table.scrollToItem(name_item)
+        self.table.editItem(name_item)
 
     def populate_role_checkboxes(self):
         for checkbox in self.role_checkboxes: checkbox.deleteLater()
