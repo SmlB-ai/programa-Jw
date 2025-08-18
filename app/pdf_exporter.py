@@ -1,3 +1,4 @@
+from datetime import timedelta
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -30,8 +31,9 @@ def export_schedule_to_pdf(dates, schedule_grid, file_path, theme_overrides={}):
                     start_date_str = week_date.strftime("%-d").lstrip("0")
                 except ValueError:
                     start_date_str = week_date.strftime("%#d").lstrip("0")
-                end_date_str = week_date.addDays(6).strftime("%B %Y")
-                week_range_str = f"{start_date_str} - {week_date.addDays(6).day} de {end_date_str}"
+                end_date = week_date + timedelta(days=6)
+                end_date_str = end_date.strftime("%B %Y")
+                week_range_str = f"{start_date_str} - {end_date.day} de {end_date_str}"
 
                 story.append(Paragraph(week_range_str, styles['WeekHeader']))
                 reason = weekly_data.get('reason', 'Sin motivo especificado')
@@ -71,8 +73,9 @@ def export_schedule_to_pdf(dates, schedule_grid, file_path, theme_overrides={}):
                 start_date_str = week_date.strftime("%-d").lstrip("0")
             except ValueError: # Fallback for Windows
                 start_date_str = week_date.strftime("%#d").lstrip("0")
-            end_date_str = week_date.addDays(6).strftime("%B %Y")
-            week_range_str = f"{start_date_str} - {week_date.addDays(6).day} de {end_date_str}"
+            end_date = week_date + timedelta(days=6)
+            end_date_str = end_date.strftime("%B %Y")
+            week_range_str = f"{start_date_str} - {end_date.day} de {end_date_str}"
 
             table_data[0][0] = Paragraph(week_range_str, styles['WeekHeader'])
             table_data[0][5] = Paragraph(f"<b>Presidente:</b> {weekly_data[0][1]}", styles['President'])

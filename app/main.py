@@ -20,7 +20,12 @@ class MainWindow(QMainWindow):
 
         # Tab for Schedule Viewer
         self.schedule_tab = ScheduleViewerWidget()
-        self.tabs.addTab(self.schedule_tab, "Horario de Reuniones")
+        self.tabs.addTab(self.schedule_tab, "Horario (Datos)")
+
+        # Tab for Preview
+        from .preview_widget import PreviewWidget
+        self.preview_tab = PreviewWidget()
+        self.tabs.addTab(self.preview_tab, "Vista Previa de Horario")
 
         # Tab for Role Management
         self.role_manager_tab = RoleManagerWidget()

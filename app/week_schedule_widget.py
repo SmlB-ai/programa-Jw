@@ -1,4 +1,5 @@
 import sys
+from datetime import timedelta
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -54,8 +55,10 @@ class WeekScheduleWidget(QWidget):
             start_date_str = self.week_date.strftime("%-d").lstrip("0")
         except ValueError:
             start_date_str = self.week_date.strftime("%#d").lstrip("0")
-        end_date_str = self.week_date.addDays(6).strftime("%B %Y")
-        week_range_str = f"{start_date_str} - {self.week_date.addDays(6).day} de {end_date_str}"
+
+        end_date = self.week_date + timedelta(days=6)
+        end_date_str = end_date.strftime("%B %Y")
+        week_range_str = f"{start_date_str} - {end_date.day} de {end_date_str}"
 
         layout.addWidget(self._create_styled_label(week_range_str, bold=True, point_size=13))
 
@@ -74,8 +77,9 @@ class WeekScheduleWidget(QWidget):
 
         # --- Fila 0: Encabezado Principal (Fecha y Presidente) ---
         start_date_str = self.week_date.strftime("%#d") # %#d para quitar el 0 en Windows, en Linux es %-d
-        end_date_str = self.week_date.addDays(6).strftime("%#d de %B de %Y")
-        date_range_str = f"<b>{start_date_str} - {end_date_str}</b>"
+        end_date = self.week_date + timedelta(days=6)
+        end_date_str = end_date.strftime("%#d de %B de %Y")
+        date_range_str = f"<b>{start_date_str} - {end_date.day} de {end_date_str}</b>"
 
         # El nombre del presidente está en la segunda columna de la primera fila de datos
         president_name = self.week_data[0][1]
