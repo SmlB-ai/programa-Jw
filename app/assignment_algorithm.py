@@ -70,12 +70,23 @@ def find_best_candidate(role, gender, slot_description, excluded_ids):
         if cand['id'] == best_candidate_id: return cand['id'], cand['nombre']
     return None, "NO ENCONTRADO"
 
+from .database.database_manager import get_special_weeks_for_month
+
 def generate_schedule(year, month, meeting_day=calendar.THURSDAY):
     cal = calendar.Calendar()
     month_dates = [d for d in cal.itermonthdates(year, month) if d.weekday() == meeting_day and d.month == month]
+    special_weeks = get_special_weeks_for_month(year, month)
     final_filled_template = []
 
     for week_idx, meeting_date in enumerate(month_dates):
+        date_str = meeting_date.strftime("%Y-%m-%d")
+        if date_str in special_weeks:
+            final_filled_template.append({
+                'is_special': True,
+                'reason': special_weeks[date_str]
+            })
+            continue
+
         week_template = USER_TEMPLATE_STRUCTURE[week_idx % len(USER_TEMPLATE_STRUCTURE)]
         filled_week = []
         assigned_ids_this_week = []

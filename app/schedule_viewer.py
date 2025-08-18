@@ -31,6 +31,7 @@ class ScheduleViewerWidget(QWidget):
         super().__init__(parent)
         self.current_schedule_data = None
         self.current_schedule_dates = None
+        self.theme_overrides = {}
         self.main_layout = QVBoxLayout(self)
         controls_layout = QHBoxLayout()
         self.month_combo = QComboBox()
@@ -38,25 +39,49 @@ class ScheduleViewerWidget(QWidget):
         self.generate_button = QPushButton("Generar Horario")
         self.save_button = QPushButton("Guardar en Historial")
         self.export_button = QPushButton("Exportar a PDF")
+        self.special_week_button = QPushButton("Semanas Especiales...")
         self.save_button.setEnabled(False); self.export_button.setEnabled(False)
+
         current_date = QDate.currentDate()
         months_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         self.month_combo.addItems(months_es)
         self.month_combo.setCurrentIndex(current_date.month() - 1)
+
         self.year_spinbox.setRange(2020, 2050); self.year_spinbox.setValue(current_date.year())
+
         controls_layout.addWidget(QLabel("Mes:")); controls_layout.addWidget(self.month_combo)
         controls_layout.addWidget(QLabel("Año:")); controls_layout.addWidget(self.year_spinbox)
         controls_layout.addWidget(self.generate_button); controls_layout.addWidget(self.save_button)
         controls_layout.addWidget(self.export_button)
+        controls_layout.addWidget(self.special_week_button)
+
         self.main_layout.addLayout(controls_layout)
         self.scroll_area = QScrollArea(); self.scroll_area.setWidgetResizable(True)
         self.schedule_container = QWidget()
-        self.schedule_grid_layout = QGridLayout(self.schedule_container)
+        # El layout se establecerá en display_schedule por primera vez
         self.scroll_area.setWidget(self.schedule_container)
         self.main_layout.addWidget(self.scroll_area)
+
         self.generate_button.clicked.connect(self.run_schedule_generation)
         self.save_button.clicked.connect(self.save_schedule)
         self.export_button.clicked.connect(self.export_to_pdf)
+        self.special_week_button.clicked.connect(self.open_special_week_dialog)
+
+    def open_special_week_dialog(self):
+        from .special_week_dialog import SpecialWeekDialog
+
+        year = self.year_spinbox.value()
+        month = self.month_combo.currentIndex() + 1
+
+        # Necesitamos las fechas exactas de las reuniones de ese mes
+        cal = calendar.Calendar()
+        meeting_day=calendar.THURSDAY # Asumiendo que es jueves
+        month_dates = [d for d in cal.itermonthdates(year, month) if d.weekday() == meeting_day and d.month == month]
+
+        dialog = SpecialWeekDialog(year, month, month_dates, self)
+        if dialog.exec():
+            # Si el usuario hizo cambios, regeneramos el horario para que se reflejen
+            self.run_schedule_generation()
 
     def run_schedule_generation(self):
         month = self.month_combo.currentIndex() + 1
@@ -66,29 +91,44 @@ class ScheduleViewerWidget(QWidget):
         self.save_button.setEnabled(True); self.export_button.setEnabled(True)
 
     def display_schedule(self):
-        while self.schedule_grid_layout.count():
-            child = self.schedule_grid_layout.takeAt(0)
-            if child.widget(): child.widget().deleteLater()
-        if not self.current_schedule_data: return
-        row_offset = 0
+        # Limpiar el contenedor de horario anterior
+        if self.schedule_container.layout() is not None:
+            # Eliminar widgets existentes de forma segura
+            while self.schedule_container.layout().count():
+                child = self.schedule_container.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+        else:
+            # Si no hay layout, crear uno nuevo
+            new_layout = QVBoxLayout(self.schedule_container)
+            self.schedule_container.setLayout(new_layout)
+
+        if not self.current_schedule_data:
+            return
+
+        # Obtener el layout del contenedor
+        container_layout = self.schedule_container.layout()
+        container_layout.setSpacing(15) # Espacio entre semanas
+
+        from .week_schedule_widget import WeekScheduleWidget
+
         for week_idx, weekly_data in enumerate(self.current_schedule_data):
-            week_title = self.current_schedule_dates[week_idx].strftime("Semana del %d de %B de %Y")
-            self.schedule_grid_layout.addWidget(QLabel(f"<b>{week_title}</b>"), row_offset, 0, 1, 4)
-            row_offset += 1
-            for row_idx, row_data in enumerate(weekly_data):
-                self.schedule_grid_layout.addWidget(QLabel(str(row_data[0])), row_offset + row_idx, 0, 1, 2)
-                original_cell = USER_TEMPLATE_STRUCTURE[week_idx % len(USER_TEMPLATE_STRUCTURE)][row_idx][1]
-                if original_cell in ('N', '/'):
-                    button = QPushButton(str(row_data[1]))
-                    button.clicked.connect(partial(self.open_manual_override_dialog, week_idx, row_idx, 1, button))
-                    self.schedule_grid_layout.addWidget(button, row_offset + row_idx, 2, 1, 2)
-                else:
-                    self.schedule_grid_layout.addWidget(QLabel(str(row_data[1])), row_offset + row_idx, 2, 1, 2)
-            row_offset += len(weekly_data)
-            if week_idx < len(self.current_schedule_data) - 1:
-                separator = QFrame(); separator.setFrameShape(QFrame.Shape.HLine)
-                self.schedule_grid_layout.addWidget(separator, row_offset, 0, 1, 4)
-                row_offset += 1
+            week_date = self.current_schedule_dates[week_idx]
+            # Aquí pasaremos los overrides al widget
+            week_widget = WeekScheduleWidget(week_date, weekly_data, self.theme_overrides)
+            week_widget.themeChanged.connect(self._on_theme_changed)
+            container_layout.addWidget(week_widget)
+
+        # Añadir un espaciador al final para que no se pegue al fondo
+        container_layout.addStretch()
+
+    def _on_theme_changed(self, old_theme, new_theme):
+        print(f"Theme changed from '{old_theme}' to '{new_theme}'")
+        # For now, we'll just store the override.
+        # A more robust key would involve the week_date as well.
+        self.theme_overrides[old_theme] = new_theme
+        # We might need to refresh the view or just the specific widget if needed
+        # but the EditableLabel already updated itself.
 
     def open_manual_override_dialog(self, week_idx, row_idx, col_idx, button):
         week_template = USER_TEMPLATE_STRUCTURE[week_idx % len(USER_TEMPLATE_STRUCTURE)]
@@ -129,7 +169,7 @@ class ScheduleViewerWidget(QWidget):
         default_filename = f"horario_{self.current_schedule_dates[0].strftime('%Y-%m')}.pdf"
         filePath, _ = QFileDialog.getSaveFileName(self, "Guardar PDF", default_filename, "PDF Files (*.pdf)")
         if filePath:
-            if export_schedule_to_pdf(self.current_schedule_dates, self.current_schedule_data, filePath):
+            if export_schedule_to_pdf(self.current_schedule_dates, self.current_schedule_data, filePath, self.theme_overrides):
                 QMessageBox.information(self, "Éxito", f"Horario exportado a:\n{filePath}")
             else:
                 QMessageBox.critical(self, "Error", "Ocurrió un error al generar el PDF.")

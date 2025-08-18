@@ -221,6 +221,47 @@ def update_person_gender(person_id, genero):
     conn.commit()
     conn.close()
 
+def add_special_week(date_iso, reason):
+    """Añade o actualiza una semana especial."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # INSERT OR REPLACE es una sintaxis de SQLite para hacer un 'upsert'
+        cursor.execute("INSERT OR REPLACE INTO special_weeks (date, reason) VALUES (?, ?)", (date_iso, reason))
+        conn.commit()
+    finally:
+        conn.close()
+
+def remove_special_week(date_iso):
+    """Elimina una semana especial."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM special_weeks WHERE date = ?", (date_iso,))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_special_week_reason(date_iso):
+    """Obtiene el motivo de una semana especial. Devuelve None si no es especial."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT reason FROM special_weeks WHERE date = ?", (date_iso,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['reason'] if row else None
+
+def get_special_weeks_for_month(year, month):
+    """Obtiene todas las semanas especiales para un mes y año dados."""
+    start_date = f"{year}-{month:02d}-01"
+    end_date = f"{year}-{month:02d}-31"
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT date, reason FROM special_weeks WHERE date BETWEEN ? AND ?", (start_date, end_date))
+    rows = cursor.fetchall()
+    conn.close()
+    return {row['date']: row['reason'] for row in rows}
+
 def save_schedule_to_history(schedule):
     """
     Guarda un horario generado en la tabla de historial.

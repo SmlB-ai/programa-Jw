@@ -60,6 +60,13 @@ def setup_database():
     );
     """
 
+    sql_create_special_weeks_table = """
+    CREATE TABLE IF NOT EXISTS special_weeks (
+        date DATE PRIMARY KEY,
+        reason TEXT NOT NULL
+    );
+    """
+
     # Crear conexión a la base de datos
     conn = create_connection()
 
@@ -69,6 +76,7 @@ def setup_database():
         create_table(conn, sql_create_roles_table)
         create_table(conn, sql_create_personas_roles_table)
         create_table(conn, sql_create_asignaciones_historial_table)
+        create_table(conn, sql_create_special_weeks_table)
 
         cursor = conn.cursor()
 
