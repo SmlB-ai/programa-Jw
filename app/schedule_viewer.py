@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QFileDialog
 )
 from PyQt6.QtCore import QDate, Qt
-from .assignment_algorithm import generate_schedule, USER_TEMPLATE_STRUCTURE
+from .assignment_algorithm import generate_schedule
 from .database.database_manager import save_schedule_to_history
 from .special_week_dialog import SpecialWeekDialog
 

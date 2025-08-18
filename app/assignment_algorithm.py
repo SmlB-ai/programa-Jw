@@ -1,9 +1,10 @@
 import calendar
 from datetime import date
-from .database.database_manager import get_db_connection, get_people_for_role
+from .database.database_manager import get_db_connection, get_people_for_role, get_meeting_template
 
 # --- Definición de Metadatos de Asignaciones (Claves Robustas) ---
 # Las claves ahora coinciden exactamente con el texto de la plantilla para evitar errores.
+# Esta estructura sigue siendo necesaria para mapear texto a requisitos.
 ASSIGNMENT_METADATA = {
     'Presidente:': {'role': 'Presidente', 'gender': 'Hombre', 'count': 1},
     'Oracion de inicio:': {'role': 'Oración', 'gender': 'Hombre', 'count': 1},
@@ -15,7 +16,6 @@ ASSIGNMENT_METADATA = {
     'Lector:': {'role': 'Estudio Bíblico Lector', 'gender': 'Hombre', 'count': 1},
 
     # --- Asignaciones de la sala B y Seamos Mejores Maestros ---
-    # Usamos la clave completa para evitar ambigüedad
     'Empiece conversaciones (Sala auxiliar B)': {'role': 'Siervo Ministerial', 'gender': 'Mujer', 'count': 2},
     'Haga discípulos  (Sala auxiliar B)': {'role': 'Siervo Ministerial', 'gender': 'Mujer', 'count': 2},
     'Haga revisitas  (Sala auxiliar B)': {'role': 'Siervo Ministerial', 'gender': 'Mujer', 'count': 2},
@@ -34,10 +34,8 @@ ASSIGNMENT_METADATA = {
     'Acomodadores de auditorio': {'role': 'Acomodador', 'gender': 'Cualquiera', 'count': 2}
 }
 
-# --- Plantilla Estructurada ---
-USER_TEMPLATE_STRUCTURE = [
-    # ... (la estructura de la plantilla no cambia)
-]
+# La plantilla hardcodeada (USER_TEMPLATE_STRUCTURE) se elimina de aquí.
+# La primera vez se migrará a la BD desde database_setup.
 
 def _get_metadata_for_slot(row_idx, col_idx, week_template):
     """Encuentra la metadata de una asignación basada en su posición en la plantilla."""
@@ -87,7 +85,17 @@ def generate_schedule(year, month, meeting_day=calendar.THURSDAY):
             })
             continue
 
-        week_template = USER_TEMPLATE_STRUCTURE[week_idx % len(USER_TEMPLATE_STRUCTURE)]
+        # Obtener la plantilla desde la base de datos
+        week_type = week_idx % 4
+        week_template = get_meeting_template(week_type)
+
+        if not week_template:
+            # Manejar el caso en que la plantilla no exista en la BD
+            print(f"Error: No se encontró la plantilla para el tipo de semana {week_type}")
+            # Podríamos añadir una semana vacía o con un mensaje de error
+            final_filled_template.append([])
+            continue
+
         filled_week = []
         assigned_ids_this_week = []
 
@@ -118,15 +126,3 @@ def generate_schedule(year, month, meeting_day=calendar.THURSDAY):
         final_filled_template.append(filled_week)
 
     return month_dates, final_filled_template
-
-# Re-pegar la plantilla completa para asegurar que está en el archivo
-USER_TEMPLATE_STRUCTURE = [
-    # Semana 1
-    [("de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("Padres sigan cuidando la herencia que Jehová les dio", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Haga discípulos  (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJORES MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Bosquejo"),("/", "N"),("Empiece conversaciones", ""),("/", "Estudio Biblico:"),("Haga discípulos", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),],
-    # Semana 2
-    [(" de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("Nuestro Señor es más grande que todos los demas dioses", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Haga revisitas  (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Explique sus creencias  (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJores MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Necesidades de la congregación"),("/", "N"),("Haga revisitas", ""),("/", "Estudio Biblico:"),("Explique sus creencias", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),],
-    # Semana 3
-    [("de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("¡Que los nervios no lo frenen!", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Haga discípulos  (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Discurso  (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJORES MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Bosquejo"),("/", "N"),("Haga discípulos", ""),("/", "Estudio Biblico:"),("Discurso", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),],
-    # Semana 4
-    [("de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("¿Qué hará despues de orar?", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Haga revisitas (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Explique sus creencias (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJORES MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Bosquejo"),("/", ""),("Haga revisitas", "N"),("/", "Estudio Biblico:"),("Explique sus creencias", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),]
-]

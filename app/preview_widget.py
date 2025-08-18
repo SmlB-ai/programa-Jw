@@ -91,14 +91,19 @@ class PreviewWidget(QWidget):
 
         for week_idx, weekly_data in enumerate(self.current_schedule_data):
             week_date = self.current_schedule_dates[week_idx]
-            week_widget = WeekScheduleWidget(week_date, weekly_data, self.theme_overrides)
+            week_type = week_idx % 4
+            week_widget = WeekScheduleWidget(week_date, week_type, weekly_data, self.theme_overrides)
             week_widget.themeChanged.connect(self._on_theme_changed)
             container_layout.addWidget(week_widget)
 
         container_layout.addStretch()
 
-    def _on_theme_changed(self, old_theme, new_theme):
-        self.theme_overrides[old_theme] = new_theme
+    def _on_theme_changed(self, week_type, row, col, new_text):
+        from .database.database_manager import update_template_text
+        # Actualizar la base de datos
+        update_template_text(week_type, row, col, new_text)
+        # Actualizar el override local para la sesión actual
+        self.theme_overrides[(week_type, row, col)] = new_text
 
     def save_schedule(self):
         # This function might need adjustment depending on how schedule history is handled

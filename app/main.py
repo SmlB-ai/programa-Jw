@@ -18,6 +18,11 @@ class MainWindow(QMainWindow):
         self.person_manager_tab = PersonManagerWidget()
         self.tabs.addTab(self.person_manager_tab, "Gestionar Personas")
 
+        # Tab for Assignment History
+        from .assignment_history_widget import AssignmentHistoryWidget
+        self.assignment_history_tab = AssignmentHistoryWidget()
+        self.tabs.addTab(self.assignment_history_tab, "Historial de Asignaciones")
+
         # Tab for Schedule Viewer
         self.schedule_tab = ScheduleViewerWidget()
         self.tabs.addTab(self.schedule_tab, "Horario (Datos)")

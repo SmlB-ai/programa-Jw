@@ -262,6 +262,85 @@ def get_special_weeks_for_month(year, month):
     conn.close()
     return {row['date']: row['reason'] for row in rows}
 
+def get_meeting_template(week_type):
+    """
+    Obtiene la plantilla de reunión para un tipo de semana específico desde la BD.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT row_index, col_index, assignment_text, is_editable FROM meeting_template WHERE week_type = ? ORDER BY row_index, col_index",
+        (week_type,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    # Reconstruir la estructura de lista de tuplas
+    template = []
+    if rows:
+        num_rows = max(r['row_index'] for r in rows) + 1
+        num_cols = max(r['col_index'] for r in rows) + 1
+        # Crear una matriz temporal con placeholders
+        matrix = [['' for _ in range(num_cols)] for _ in range(num_rows)]
+        for row in rows:
+            matrix[row['row_index']][row['col_index']] = row['assignment_text']
+        # Convertir la matriz a lista de tuplas
+        template = [tuple(row) for row in matrix]
+
+    return template
+
+def update_template_text(week_type, row_index, col_index, new_text):
+    """
+    Actualiza el texto de una celda editable en la plantilla de la reunión.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        UPDATE meeting_template
+        SET assignment_text = ?
+        WHERE week_type = ? AND row_index = ? AND col_index = ? AND is_editable = 1
+        """,
+        (new_text, week_type, row_index, col_index)
+    )
+    conn.commit()
+    conn.close()
+
+def get_assignment_history_summary():
+    """
+    Obtiene un resumen de la última asignación para cada persona.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    query = """
+    WITH RankedAssignments AS (
+        SELECT
+            p.id,
+            p.nombre,
+            ah.fecha_reunion,
+            ah.descripcion_asignacion,
+            ROW_NUMBER() OVER(PARTITION BY p.id ORDER BY ah.fecha_reunion DESC) as rn
+        FROM
+            personas p
+        LEFT JOIN
+            asignaciones_historial ah ON p.id = ah.persona_id
+    )
+    SELECT
+        nombre,
+        fecha_reunion,
+        descripcion_asignacion
+    FROM
+        RankedAssignments
+    WHERE
+        rn = 1
+    ORDER BY
+        nombre;
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
 def save_schedule_to_history(schedule):
     """
     Guarda un horario generado en la tabla de historial.

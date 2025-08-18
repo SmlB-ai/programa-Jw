@@ -67,6 +67,18 @@ def setup_database():
     );
     """
 
+    sql_create_meeting_template_table = """
+    CREATE TABLE IF NOT EXISTS meeting_template (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        week_type INTEGER NOT NULL,
+        row_index INTEGER NOT NULL,
+        col_index INTEGER NOT NULL,
+        assignment_text TEXT NOT NULL,
+        is_editable INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(week_type, row_index, col_index)
+    );
+    """
+
     # Crear conexión a la base de datos
     conn = create_connection()
 
@@ -77,6 +89,7 @@ def setup_database():
         create_table(conn, sql_create_personas_roles_table)
         create_table(conn, sql_create_asignaciones_historial_table)
         create_table(conn, sql_create_special_weeks_table)
+        create_table(conn, sql_create_meeting_template_table)
 
         cursor = conn.cursor()
 
@@ -91,6 +104,41 @@ def setup_database():
             # A separate CHECK constraint is not easily added via ALTER TABLE.
             # The CREATE TABLE statement will handle it for new DBs.
             conn.commit()
+
+        # --- Data Migration for meeting_template ---
+        cursor.execute("SELECT COUNT(*) FROM meeting_template")
+        if cursor.fetchone()[0] == 0:
+            print("Migrando plantilla de reunión a la base de datos...")
+            # La plantilla ahora se define aquí temporalmente para la migración
+            USER_TEMPLATE_STRUCTURE = [
+                # Semana 1
+                [("de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("Padres sigan cuidando la herencia que Jehová les dio", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Haga discípulos  (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJORES MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Bosquejo"),("/", "N"),("Empiece conversaciones", ""),("/", "Estudio Biblico:"),("Haga discípulos", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),],
+                # Semana 2
+                [(" de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("Nuestro Señor es más grande que todos los demas dioses", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Haga revisitas  (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Explique sus creencias  (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJores MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Necesidades de la congregación"),("/", "N"),("Haga revisitas", ""),("/", "Estudio Biblico:"),("Explique sus creencias", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),],
+                # Semana 3
+                [("de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("¡Que los nervios no lo frenen!", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Haga discípulos  (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Discurso  (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJORES MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Bosquejo"),("/", "N"),("Haga discípulos", ""),("/", "Estudio Biblico:"),("Discurso", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),],
+                # Semana 4
+                [("de 2025", "Presidente:"),("Oracion de inicio:", "Lectura de la Biblia (Sala auxiliar B)"),("TESOROS DE LA BIBLIA", "/"),("¿Qué hará despues de orar?", "Empiece conversaciones (Sala auxiliar B)"),("N", "/"),("Busquemos perlas escondidas", "Haga revisitas (Sala auxiliar B)"),("N", "/"),("Lectura de la Biblia", "Explique sus creencias (Sala auxiliar B)"),("N", "/"),("SEAMOS MEJORES MAESTROS", "NUESTRA VIDA CRISTIANA"),("Empiece conversaciones", "Bosquejo"),("/", ""),("Haga revisitas", "N"),("/", "Estudio Biblico:"),("Explique sus creencias", "Lector:"),("/", "N"),("", "Oracion de final:"),("Acomodadores de entrada", "Acomodadores de auditorio"),("N", "N"),]
+            ]
+            rows_to_insert = []
+            for week_type, week_template in enumerate(USER_TEMPLATE_STRUCTURE):
+                for row_idx, row_data in enumerate(week_template):
+                    for col_idx, cell_text in enumerate(row_data):
+                        # Marcar temas específicos como editables
+                        is_editable = 0
+                        # Tema de Tesoros: semana_X, fila_3, col_0
+                        # Tema de Vida Cristiana: semana_X, fila_10, col_1
+                        if (row_idx == 3 and col_idx == 0) or (row_idx == 10 and col_idx == 1):
+                            is_editable = 1
+
+                        rows_to_insert.append((week_type, row_idx, col_idx, cell_text, is_editable))
+
+            cursor.executemany(
+                "INSERT INTO meeting_template (week_type, row_index, col_index, assignment_text, is_editable) VALUES (?, ?, ?, ?, ?)",
+                rows_to_insert
+            )
+            conn.commit()
+            print("Migración de plantilla completada.")
 
         # Opcional: Añadir roles por defecto si la tabla está vacía
         cursor.execute("SELECT COUNT(*) FROM roles")
